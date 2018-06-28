@@ -27,7 +27,7 @@ status: provisional
 * [Proposal](#proposal)
   * [API](#api)
     * [API Specification](#api-specification)
-    * [CRI API Specification](#cri-api-specification)
+    * [Runtime Parameters](#runtime-parameters)
   * [Versioning, Updates, and Rollouts](#versioning-updates-and-rollouts)
   * [Implementation Details](#implementation-details)
   * [Risks and Mitigations](#risks-and-mitigations)
@@ -211,13 +211,41 @@ provide a way of specifying options that are tightly coupled with the class of r
 not be used to enumerate general pod options as this would lead to a combinatorial explosion of
 RuntimeClass definitions.
 
-Examples of runtime parameters include:
+Initial use cases for runtime parameters targeted by alpha include:
+
+1. **Sandboxed Runtimes:** Replacing the experimental pod annotations currently used for selecting a
+sandboxed runtime by various CRI implementations:
+
+    | CRI Runtime | Pod Annotation                                         |
+    | ------------|--------------------------------------------------------|
+    | CRIO        | io.kubernetes.cri-o.TrustedSandbox: "false"            |
+    | containerd  | io.kubernetes.cri.untrusted-workload: "true"           |
+    | frakti      | runtime.frakti.alpha.kubernetes.io/OSContainer: "true"<br>runtime.frakti.alpha.kubernetes.io/Unikernel: "true" |
+
+    These implementations could move the annotations directly to parameters, but the preferred
+    approach is a non-binary one. Instead, the CRI implementation should allow for arbitrary
+    underlying runtimes, and match a parameter to the configured name. For example, a containerd
+    implementation might accept a parameter `io.containerd.runtime: kata-runtime`, and have a
+    corresponding configuration:
+
+    ```
+    [plugins.cri.containerd.kata-runtime]
+        runtime_type = "io.containerd.runtime.v1.linux"
+        runtime_engine = "/opt/kata/bin/kata-runtime"
+        runtime_root = ""
+    ```
+
+    This non-binary approach is more flexible, and could map to a binary RuntimeClass selection
+    (e.g. `sandboxed` or `untrusted` RuntimeClasses) or support multiple parallel sandbox types
+    (e.g. `kata-containers` or `gvisor` RuntimeClasses).
+
+
 
 ```
 // Decide which underlying OCI runtime should be used. This replaces the
 // annotations used by CRI-o, containerd & frakti to select between sandboxed
 // runtimes.
-"oci-runtime": "runsc"
+
 
 // Change the default set of capabilities used by the runtime. This is a good
 // way of surfacing behaviors that were previously implicit in docker but not
